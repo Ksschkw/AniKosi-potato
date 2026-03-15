@@ -3,34 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Three.js Cinematic: KOSISOCHUKWU Forge</title>
+    <title>KOSISOCHUKWU – Cinematic WebGL</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             background-color: black;
-            font-family: 'Arial', sans-serif;
+            font-family: sans-serif;
         }
-        /* No subtitles, no watermark – only fullscreen canvas */
-        canvas {
-            display: block;
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #aa8866;
+            font-size: 1.2rem;
+            background: rgba(0,0,0,0.7);
+            padding: 0.8rem 1.5rem;
+            border-radius: 40px;
+            border: 1px solid #ffaa3355;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 1s;
+            backdrop-filter: blur(4px);
         }
-        /* Optional subtle grain for cinematic feel (barely visible) */
         .info {
             position: absolute;
             bottom: 20px;
             right: 20px;
-            color: rgba(255,255,255,0.1);
+            color: rgba(255,200,150,0.15);
             font-size: 12px;
             pointer-events: none;
-            z-index: 100;
+            z-index: 5;
         }
     </style>
 </head>
 <body>
-    <div class="info">KOSISOCHUKWU • Cinematic Sequence</div>
+    <div id="loading">⚡ INITIALIZING CINEMATIC SEQUENCE ⚡</div>
+    <div class="info">KOSISOCHUKWU • 7s loop</div>
 
-    <!-- Import Three.js core, addons, and loaders from CDN -->
+    <!-- Import maps and Three.js from CDN -->
     <script type="importmap">
         {
             "imports": {
@@ -41,6 +53,10 @@
     </script>
 
     <script type="module">
+        // --- ERROR LOGGING HELPER ---
+        window.addEventListener('error', (e) => console.error('Global error:', e.message));
+        console.log('🚀 Starting KOSISOCHUKWU sequence');
+
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
         import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -49,26 +65,26 @@
         import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 
         // --- Configuration ---
-        const SCENE_DURATION = 7.0; // seconds (loop)
-        const PARTICLE_COUNT = 3500; // for symbol-to-text transformation
+        const SCENE_DURATION = 7.0;
+        const PARTICLE_COUNT = 3800; // slightly more for canvas-sampled density
         const DUST_COUNT = 800;
-        
+
         // --- Setup Scene, Camera, Renderer ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050510); // deep dark blue/black
-        scene.fog = new THREE.FogExp2(0x050510, 0.03); // subtle fog for depth
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.FogExp2(0x050510, 0.03);
 
         const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(2, 1.5, 6); // starting position for cinematic push
+        camera.position.set(2, 1.5, 6);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // limit for performance
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.toneMapping = THREE.ReinhardToneMapping;
         renderer.toneMappingExposure = 1.2;
         document.body.appendChild(renderer.domElement);
 
-        // --- Post Processing (Volumetric Bloom) ---
+        // --- Post Processing (Bloom) ---
         const renderScene = new RenderPass(scene, camera);
         const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
         bloomPass.threshold = 0.1;
@@ -80,26 +96,21 @@
         composer.addPass(bloomPass);
 
         // --- Lighting ---
-        // Ambient base
         const ambient = new THREE.AmbientLight(0x404060);
         scene.add(ambient);
-
-        // Key light from above
         const keyLight = new THREE.DirectionalLight(0xccaa88, 1.2);
         keyLight.position.set(2, 5, 3);
         scene.add(keyLight);
-
-        // Fill light
         const fillLight = new THREE.DirectionalLight(0x88aaff, 0.6);
         fillLight.position.set(-3, 1, 2);
         scene.add(fillLight);
-
-        // Point light inside stone for glow (will be positioned with stone)
+        
+        // Point light inside stone
         const stoneGlowLight = new THREE.PointLight(0xffaa33, 2, 8, 2);
         stoneGlowLight.position.set(0, 0.2, 0);
         scene.add(stoneGlowLight);
-
-        // Additional point lights for text reveal
+        
+        // Additional lights for text
         const textGlowLight1 = new THREE.PointLight(0xffaa00, 1, 10);
         textGlowLight1.position.set(1, 1, 2);
         scene.add(textGlowLight1);
@@ -107,7 +118,7 @@
         textGlowLight2.position.set(-1, -0.5, 2);
         scene.add(textGlowLight2);
 
-        // --- Helper: Noise texture for stone displacement and particle variation ---
+        // --- Helper: noise texture for stone ---
         function createNoiseTexture(width = 64, height = 64) {
             const canvas = document.createElement('canvas');
             canvas.width = width;
@@ -117,10 +128,7 @@
             const data = imageData.data;
             for (let i = 0; i < data.length; i += 4) {
                 const val = Math.floor(Math.random() * 256);
-                data[i] = val;       // R
-                data[i+1] = val;     // G
-                data[i+2] = val;     // B
-                data[i+3] = 255;     // A
+                data[i] = val; data[i+1] = val; data[i+2] = val; data[i+3] = 255;
             }
             ctx.putImageData(imageData, 0, 0);
             const texture = new THREE.CanvasTexture(canvas);
@@ -129,8 +137,8 @@
             return texture;
         }
 
-        // --- 1. Create Ancient Stone Tablet (with displacement) ---
-        const stoneGeo = new THREE.BoxGeometry(2.2, 1.2, 0.8, 64, 64, 64); // high segments for detail
+        // --- 1. Ancient Stone Tablet ---
+        const stoneGeo = new THREE.BoxGeometry(2.2, 1.2, 0.8, 64, 64, 64);
         const stoneMat = new THREE.MeshStandardMaterial({
             color: 0x6a5e4e,
             emissive: 0x221100,
@@ -140,10 +148,8 @@
             displacementScale: 0.3,
             displacementBias: -0.1,
             map: (() => {
-                // Simple stone color map with some variation
                 const canvas = document.createElement('canvas');
-                canvas.width = 256;
-                canvas.height = 256;
+                canvas.width = 256; canvas.height = 256;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = '#6a5e4e';
                 ctx.fillRect(0, 0, 256, 256);
@@ -155,29 +161,22 @@
                 }
                 return new THREE.CanvasTexture(canvas);
             })(),
-            emissiveMap: createNoiseTexture(128, 128), // subtle glow variation
+            emissiveMap: createNoiseTexture(128, 128),
         });
         const stone = new THREE.Mesh(stoneGeo, stoneMat);
-        stone.castShadow = true;
-        stone.receiveShadow = false;
         stone.position.set(0, 0, 0);
         scene.add(stone);
-
-        // Position the point light inside stone
         stoneGlowLight.position.copy(stone.position);
 
-        // --- 2. Particle Systems ---
-
-        // A) Dust particles (ambient, slow drifting)
+        // --- 2. Dust Particles (ambient) ---
         const dustGeo = new THREE.BufferGeometry();
         const dustPositions = new Float32Array(DUST_COUNT * 3);
         for (let i = 0; i < DUST_COUNT; i++) {
-            // random sphere around origin
             const r = 5 + Math.random() * 8;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(2 * Math.random() - 1);
             dustPositions[i*3] = Math.sin(phi) * Math.cos(theta) * r;
-            dustPositions[i*3+1] = Math.sin(phi) * Math.sin(theta) * r * 0.5; // flatten vertical
+            dustPositions[i*3+1] = Math.sin(phi) * Math.sin(theta) * r * 0.5;
             dustPositions[i*3+2] = Math.cos(phi) * r;
         }
         dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
@@ -188,14 +187,10 @@
             opacity: 0.4,
             blending: THREE.AdditiveBlending,
             map: (() => {
-                const canvas = document.createElement('canvas');
-                canvas.width = 16;
-                canvas.height = 16;
+                const canvas = document.createElement('canvas'); canvas.width = 16; canvas.height = 16;
                 const ctx = canvas.getContext('2d');
                 ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(8, 8, 6, 0, 2*Math.PI);
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(8, 8, 6, 0, 2*Math.PI); ctx.fill();
                 return new THREE.CanvasTexture(canvas);
             })(),
             depthWrite: false
@@ -203,66 +198,48 @@
         const dustParticles = new THREE.Points(dustGeo, dustMat);
         scene.add(dustParticles);
 
-        // B) Main symbol particles (will transform into text)
+        // --- 3. Main Symbol Particles (will become the text) ---
         const particleGeo = new THREE.BufferGeometry();
         const initialPositions = new Float32Array(PARTICLE_COUNT * 3);
-        const particleColors = new Float32Array(PARTICLE_COUNT * 3); // for gradient
-        const particleSizes = new Float32Array(PARTICLE_COUNT); // not used directly, but via uniform
-
-        // Pre-generate random positions on stone surface (approx)
+        const particleColors = new Float32Array(PARTICLE_COUNT * 3);
+        // Random positions on stone surface
         for (let i = 0; i < PARTICLE_COUNT; i++) {
-            // Random face of box (0-5) and random UV
             const face = Math.floor(Math.random() * 6);
             let x, y, z;
             const u = Math.random() * 2 - 1;
             const v = Math.random() * 2 - 1;
-            const halfW = 1.1, halfH = 0.6, halfD = 0.4; // stone half-dimensions (slightly larger than geom to sit on surface)
+            const halfW = 1.1, halfH = 0.6, halfD = 0.4;
             switch(face) {
-                case 0: // +x
-                    x = halfW; y = v * halfH; z = u * halfD; break;
-                case 1: // -x
-                    x = -halfW; y = v * halfH; z = u * halfD; break;
-                case 2: // +y
-                    x = u * halfW; y = halfH; z = v * halfD; break;
-                case 3: // -y
-                    x = u * halfW; y = -halfH; z = v * halfD; break;
-                case 4: // +z
-                    x = u * halfW; y = v * halfH; z = halfD; break;
-                case 5: // -z
-                    x = u * halfW; y = v * halfH; z = -halfD; break;
+                case 0: x = halfW; y = v * halfH; z = u * halfD; break;
+                case 1: x = -halfW; y = v * halfH; z = u * halfD; break;
+                case 2: x = u * halfW; y = halfH; z = v * halfD; break;
+                case 3: x = u * halfW; y = -halfH; z = v * halfD; break;
+                case 4: x = u * halfW; y = v * halfH; z = halfD; break;
+                case 5: x = u * halfW; y = v * halfH; z = -halfD; break;
             }
-            // Add small random offset to simulate roughness
             x += (Math.random() - 0.5) * 0.2;
             y += (Math.random() - 0.5) * 0.2;
             z += (Math.random() - 0.5) * 0.2;
-            
             initialPositions[i*3] = x;
             initialPositions[i*3+1] = y;
             initialPositions[i*3+2] = z;
             
-            // Colors: start gold/amber
-            particleColors[i*3] = 1.0; // r
-            particleColors[i*3+1] = 0.7 + Math.random()*0.3; // g
-            particleColors[i*3+2] = 0.2 + Math.random()*0.2; // b
+            // goldish
+            particleColors[i*3] = 1.0;
+            particleColors[i*3+1] = 0.7 + Math.random()*0.3;
+            particleColors[i*3+2] = 0.2 + Math.random()*0.2;
         }
         particleGeo.setAttribute('position', new THREE.BufferAttribute(initialPositions, 3));
         particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
 
-        // Particle material
         const particleTexture = (() => {
-            const canvas = document.createElement('canvas');
-            canvas.width = 32;
-            canvas.height = 32;
+            const canvas = document.createElement('canvas'); canvas.width = 32; canvas.height = 32;
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(16, 16, 12, 0, 2*Math.PI);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(16, 16, 12, 0, 2*Math.PI); ctx.fill();
             ctx.globalCompositeOperation = 'source-atop';
             ctx.fillStyle = '#ffaa00';
-            ctx.beginPath();
-            ctx.arc(16, 16, 8, 0, 2*Math.PI);
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(16, 16, 8, 0, 2*Math.PI); ctx.fill();
             return new THREE.CanvasTexture(canvas);
         })();
 
@@ -279,9 +256,8 @@
         const symbolParticles = new THREE.Points(particleGeo, particleMat);
         scene.add(symbolParticles);
 
-        // Store target positions (will be filled after font loads)
-        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
-        // Also store a swirl offset array for dynamic movement
+        // Storage for target positions and swirl offsets
+        const targetPositions = new Float32Array(PARTICLE_COUNT * 3);
         const swirlOffsets = new Float32Array(PARTICLE_COUNT * 3);
         for (let i = 0; i < PARTICLE_COUNT; i++) {
             swirlOffsets[i*3] = (Math.random() - 0.5) * 4;
@@ -289,13 +265,65 @@
             swirlOffsets[i*3+2] = (Math.random() - 0.5) * 4;
         }
 
-        // --- 3. Text Mesh (final reveal) ---
-        let textMesh = null;
-        let textTargetsReady = false;
+        // --- 4. Fallback: Generate text particle targets from Canvas 2D (guaranteed to work) ---
+        function generateCanvasTextTargets() {
+            console.log('Generating canvas-based text targets (fallback)');
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = 'Bold 180px "Arial", "Helvetica", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('KOSISOCHUKWU', canvas.width/2, canvas.height/2);
+            
+            // Sample points where image is white
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const positions = [];
+            const step = 2; // sample every 2nd pixel for performance/ density
+            for (let y = 0; y < canvas.height; y += step) {
+                for (let x = 0; x < canvas.width; x += step) {
+                    const index = (y * canvas.width + x) * 4;
+                    if (data[index] > 128) {
+                        // Map to 3D space: x: -1.8..1.8, y: -0.6..0.6, z small range
+                        const px = (x / canvas.width) * 3.6 - 1.8;
+                        const py = -(y / canvas.height) * 1.2 + 0.6; // flip y
+                        const pz = (Math.random() - 0.5) * 0.3;
+                        positions.push(px, py, pz);
+                    }
+                }
+            }
+            console.log(`Sampled ${positions.length/3} points from canvas`);
+            
+            // If we have fewer than needed, repeat some
+            const targetArray = new Float32Array(PARTICLE_COUNT * 3);
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const srcIdx = (i % (positions.length/3)) * 3;
+                targetArray[i*3] = positions[srcIdx] + (Math.random()-0.5)*0.1;
+                targetArray[i*3+1] = positions[srcIdx+1] + (Math.random()-0.5)*0.1;
+                targetArray[i*3+2] = positions[srcIdx+2] + (Math.random()-0.5)*0.1;
+            }
+            return targetArray;
+        }
 
-        // Load font and generate target positions & text mesh
+        // Default fallback targets (populated immediately)
+        const fallbackTargets = generateCanvasTextTargets();
+        // Copy to targetPositions as initial (will be overwritten if font succeeds)
+        for (let i = 0; i < PARTICLE_COUNT*3; i++) {
+            targetPositions[i] = fallbackTargets[i];
+        }
+
+        // --- 5. Attempt to load 3D Font for better text mesh ---
+        let textMesh = null;
+        let textTargetsReady = false; // becomes true only when font targets are set
+
         const loader = new FontLoader();
         loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+            console.log('✅ 3D Font loaded, creating text geometry and precise targets');
             const textGeo = new THREE.TextGeometry('KOSISOCHUKWU', {
                 font: font,
                 size: 1.2,
@@ -307,9 +335,8 @@
                 bevelOffset: 0,
                 bevelSegments: 5
             });
-            textGeo.center(); // center the geometry
+            textGeo.center();
             
-            // Create final text mesh (glowing, metallic)
             const textMat = new THREE.MeshStandardMaterial({
                 color: 0xffaa33,
                 emissive: 0xaa4400,
@@ -319,24 +346,21 @@
             });
             textMesh = new THREE.Mesh(textGeo, textMat);
             textMesh.position.set(0, 0.1, 0);
-            textMesh.scale.set(1, 1, 1);
-            textMesh.visible = false; // hidden until final reveal
+            textMesh.visible = false;
             scene.add(textMesh);
 
-            // Sample vertices from text geometry for particle targets
+            // Sample vertices for particle targets
             const posAttr = textGeo.attributes.position;
             const vertexCount = posAttr.count;
             const positions = posAttr.array;
             
-            // Randomly select PARTICLE_COUNT vertices (with repetition if needed)
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const idx = Math.floor(Math.random() * vertexCount) * 3;
                 targetPositions[i*3] = positions[idx];
                 targetPositions[i*3+1] = positions[idx+1];
                 targetPositions[i*3+2] = positions[idx+2];
             }
-            
-            // Also add slight random offset to make cloud more organic
+            // Add slight noise
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 targetPositions[i*3] += (Math.random() - 0.5) * 0.15;
                 targetPositions[i*3+1] += (Math.random() - 0.5) * 0.15;
@@ -344,202 +368,28 @@
             }
             
             textTargetsReady = true;
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
+        }, undefined, (err) => {
+            console.warn('⚠️ Font loading failed, using canvas-based targets. Text mesh will not appear, but particles will form the name.', err);
+            // fallback already in targetPositions
+            textTargetsReady = true; // still true so animation proceeds
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
         });
 
-        // --- Camera Animation Path (slow forward push with slight orbit) ---
-        function updateCamera(time) {
-            // t cycles 0..1 over 7 seconds
-            const t = (time % SCENE_DURATION) / SCENE_DURATION;
-            
-            // Start: (2, 1.5, 6) -> End: (0.5, 0.8, 2.5) with slight arc
-            const startPos = new THREE.Vector3(2, 1.5, 6);
-            const endPos = new THREE.Vector3(0.2, 0.5, 2.2);
-            const orbitOffset = new THREE.Vector3(
-                Math.sin(time * 0.5) * 0.3,
-                Math.cos(time * 0.3) * 0.1,
-                0
-            );
-            
-            // Ease in-out
-            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-            
-            camera.position.lerpVectors(startPos, endPos, eased);
-            camera.position.add(orbitOffset);
-            camera.lookAt(0, 0.2, 0);
-        }
-
-        // --- Animation Loop Variables ---
-        const clock = new THREE.Clock();
-
-        // --- Animation Logic ---
-        function animate() {
-            const delta = clock.getDelta();
-            const elapsedTime = performance.now() / 1000; // seconds
-            const tCycle = (elapsedTime % SCENE_DURATION) / SCENE_DURATION; // 0..1 loop
-
-            // Update camera
-            updateCamera(elapsedTime);
-
-            // --- Dust particles drift slowly ---
-            const dustPos = dustParticles.geometry.attributes.position.array;
-            for (let i = 0; i < DUST_COUNT; i++) {
-                // Simple drift in a vortex
-                const idx = i * 3;
-                dustPos[idx] += Math.sin(elapsedTime * 0.5 + i) * 0.0005;
-                dustPos[idx+1] += Math.cos(elapsedTime * 0.3 + i) * 0.0003;
-                dustPos[idx+2] += Math.sin(elapsedTime * 0.4 + i*2) * 0.0004;
-                // Reset if too far
-                if (dustPos[idx] > 12) dustPos[idx] = -12;
-                if (dustPos[idx+1] > 8) dustPos[idx+1] = -8;
+        // If font takes too long, we still have fallback, but we need to set textTargetsReady true after a timeout
+        // But we already have fallback targets, so we can set a timeout to force ready if font never returns
+        setTimeout(() => {
+            if (!textTargetsReady) {
+                console.log('⚠️ Font load timeout, using fallback targets');
+                textTargetsReady = true;
+                document.getElementById('loading').style.opacity = '0';
+                setTimeout(() => document.getElementById('loading').style.display = 'none', 1000);
             }
-            dustParticles.geometry.attributes.position.needsUpdate = true;
+        }, 3000);
 
-            // --- Main particle transformation ---
-            if (textTargetsReady) {
-                const positions = symbolParticles.geometry.attributes.position.array;
-                const colors = symbolParticles.geometry.attributes.color.array;
-                
-                // Define phases based on tCycle (0-1)
-                // 0-0.28: phase1 (stone glow) (0-2s)
-                // 0.28-0.57: phase2 (lift & swirl) (2-4s)
-                // 0.57-0.85: phase3 (assembly) (4-6s)
-                // 0.85-1.0: phase4 (final reveal) (6-7s)
-                
-                let phase = 0;
-                let phaseT = 0;
-                if (tCycle < 0.28) {
-                    phase = 1;
-                    phaseT = tCycle / 0.28; // 0..1
-                } else if (tCycle < 0.57) {
-                    phase = 2;
-                    phaseT = (tCycle - 0.28) / 0.29; // 0..1
-                } else if (tCycle < 0.85) {
-                    phase = 3;
-                    phaseT = (tCycle - 0.57) / 0.28; // 0..1
-                } else {
-                    phase = 4;
-                    phaseT = (tCycle - 0.85) / 0.15; // 0..1
-                }
-
-                // Show text mesh only in phase 4, with fade-in
-                if (textMesh) {
-                    if (phase === 4) {
-                        textMesh.visible = true;
-                        textMesh.material.emissiveIntensity = 1.0 + Math.sin(elapsedTime * 10) * 0.3;
-                        // also scale slightly for pulse
-                        textMesh.scale.setScalar(1.0 + Math.sin(elapsedTime * 20) * 0.02);
-                    } else {
-                        textMesh.visible = false;
-                    }
-                }
-
-                // Update particle positions based on phase
-                for (let i = 0; i < PARTICLE_COUNT; i++) {
-                    const i3 = i * 3;
-                    const initX = initialPositions[i3];
-                    const initY = initialPositions[i3+1];
-                    const initZ = initialPositions[i3+2];
-                    
-                    const targetX = targetPositions[i3];
-                    const targetY = targetPositions[i3+1];
-                    const targetZ = targetPositions[i3+2];
-                    
-                    let px, py, pz;
-                    
-                    if (phase === 1) {
-                        // Phase1: particles on stone, subtle glow pulse
-                        px = initX;
-                        py = initY;
-                        pz = initZ;
-                        // Colors goldish with pulse
-                        const pulse = 0.8 + 0.4 * Math.sin(elapsedTime * 8 + i);
-                        colors[i3] = 1.0;
-                        colors[i3+1] = 0.7 * pulse;
-                        colors[i3+2] = 0.2;
-                    } else if (phase === 2) {
-                        // Phase2: lift off and swirl: interpolate from stone to intermediate swirling positions
-                        // Intermediate: stone + swirl offset * phaseT
-                        const swirlX = initX + swirlOffsets[i3] * phaseT;
-                        const swirlY = initY + swirlOffsets[i3+1] * phaseT * 1.5;
-                        const swirlZ = initZ + swirlOffsets[i3+2] * phaseT;
-                        px = swirlX;
-                        py = swirlY;
-                        pz = swirlZ;
-                        // Colors shift to neon blue/cyan
-                        colors[i3] = 0.3 + phaseT * 0.7;
-                        colors[i3+1] = 0.8 + phaseT * 0.2;
-                        colors[i3+2] = 1.0;
-                    } else if (phase === 3) {
-                        // Phase3: assembly from swirl positions to target
-                        // Starting from phase2 end position (swirl fully applied)
-                        const startX = initX + swirlOffsets[i3];
-                        const startY = initY + swirlOffsets[i3+1] * 1.5;
-                        const startZ = initZ + swirlOffsets[i3+2];
-                        // Ease to target
-                        const eased = phaseT; // could use cubic
-                        px = startX * (1 - eased) + targetX * eased;
-                        py = startY * (1 - eased) + targetY * eased;
-                        pz = startZ * (1 - eased) + targetZ * eased;
-                        // Add spark overshoot effect
-                        if (phaseT < 0.3) {
-                            // slight overshoot
-                            px += Math.sin(elapsedTime * 50 + i) * 0.2 * (0.3 - phaseT);
-                        }
-                        // Colors become molten gold
-                        colors[i3] = 1.0;
-                        colors[i3+1] = 0.6 + 0.4 * Math.sin(elapsedTime * 30 + i);
-                        colors[i3+2] = 0.1 + 0.2 * Math.sin(elapsedTime * 20 + i);
-                    } else {
-                        // Phase4: final reveal - particles either fade or become subtle sparks around text
-                        // We'll make them slowly move around text and fade out
-                        const orbitSpeed = 0.5;
-                        const angle = elapsedTime * 2 + i;
-                        const radius = 0.8;
-                        px = targetX + Math.sin(angle) * 0.3 * (1 - phaseT);
-                        py = targetY + Math.cos(angle*1.3) * 0.3 * (1 - phaseT);
-                        pz = targetZ + Math.sin(angle*0.7) * 0.3 * (1 - phaseT);
-                        // fade out opacity? we can control material opacity but per particle is tricky.
-                        // Instead we reduce size via material? but we'll just let them be subtle.
-                        colors[i3] = 1.0;
-                        colors[i3+1] = 0.9;
-                        colors[i3+2] = 0.6;
-                    }
-                    
-                    positions[i3] = px;
-                    positions[i3+1] = py;
-                    positions[i3+2] = pz;
-                }
-                
-                // Update attributes
-                symbolParticles.geometry.attributes.position.needsUpdate = true;
-                symbolParticles.geometry.attributes.color.needsUpdate = true;
-                
-                // Pulse bloom strength slightly
-                bloomPass.strength = 1.5 + Math.sin(elapsedTime * 5) * 0.3;
-            }
-
-            // Animate stone glow light
-            stoneGlowLight.intensity = 1.5 + Math.sin(elapsedTime * 6) * 1.0;
-
-            // Render via composer
-            composer.render();
-            
-            requestAnimationFrame(animate);
-        }
-
-        // Start animation
-        animate();
-
-        // --- Resize Handler ---
-        window.addEventListener('resize', onWindowResize, false);
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
-        }
-
-        // --- Initial kick: add some random stars for background depth (optional) ---
+        // --- Stars background ---
         const starGeo = new THREE.BufferGeometry();
         const starPos = new Float32Array(1500 * 3);
         for (let i = 0; i < 1500; i++) {
@@ -555,7 +405,142 @@
         const stars = new THREE.Points(starGeo, starMat);
         scene.add(stars);
 
-        console.log('Cinematic sequence started. Enjoy KOSISOCHUKWU!');
+        // --- Camera motion ---
+        function updateCamera(time) {
+            const t = (time % SCENE_DURATION) / SCENE_DURATION;
+            const startPos = new THREE.Vector3(2, 1.5, 6);
+            const endPos = new THREE.Vector3(0.2, 0.5, 2.2);
+            const orbitOffset = new THREE.Vector3(
+                Math.sin(time * 0.5) * 0.3,
+                Math.cos(time * 0.3) * 0.1,
+                0
+            );
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            camera.position.lerpVectors(startPos, endPos, eased);
+            camera.position.add(orbitOffset);
+            camera.lookAt(0, 0.2, 0);
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const elapsedTime = performance.now() / 1000;
+            const tCycle = (elapsedTime % SCENE_DURATION) / SCENE_DURATION;
+
+            updateCamera(elapsedTime);
+
+            // Drift dust
+            const dustPos = dustParticles.geometry.attributes.position.array;
+            for (let i = 0; i < DUST_COUNT; i++) {
+                const idx = i * 3;
+                dustPos[idx] += Math.sin(elapsedTime * 0.5 + i) * 0.0005;
+                dustPos[idx+1] += Math.cos(elapsedTime * 0.3 + i) * 0.0003;
+                dustPos[idx+2] += Math.sin(elapsedTime * 0.4 + i*2) * 0.0004;
+                if (dustPos[idx] > 12) dustPos[idx] = -12;
+                if (dustPos[idx+1] > 8) dustPos[idx+1] = -8;
+            }
+            dustParticles.geometry.attributes.position.needsUpdate = true;
+
+            // Update particles if targets are ready
+            if (textTargetsReady) {
+                const positions = symbolParticles.geometry.attributes.position.array;
+                const colors = symbolParticles.geometry.attributes.color.array;
+
+                // Determine phase
+                let phase = 1, phaseT = 0;
+                if (tCycle < 0.28) { phase = 1; phaseT = tCycle / 0.28; }
+                else if (tCycle < 0.57) { phase = 2; phaseT = (tCycle - 0.28) / 0.29; }
+                else if (tCycle < 0.85) { phase = 3; phaseT = (tCycle - 0.57) / 0.28; }
+                else { phase = 4; phaseT = (tCycle - 0.85) / 0.15; }
+
+                // Show text mesh only in phase 4 (if it exists)
+                if (textMesh) {
+                    textMesh.visible = (phase === 4);
+                    if (phase === 4) {
+                        textMesh.material.emissiveIntensity = 1.0 + Math.sin(elapsedTime * 10) * 0.3;
+                        textMesh.scale.setScalar(1.0 + Math.sin(elapsedTime * 20) * 0.02);
+                    }
+                }
+
+                // Update each particle
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const i3 = i * 3;
+                    const ix = initialPositions[i3];
+                    const iy = initialPositions[i3+1];
+                    const iz = initialPositions[i3+2];
+                    
+                    const tx = targetPositions[i3];
+                    const ty = targetPositions[i3+1];
+                    const tz = targetPositions[i3+2];
+
+                    let px, py, pz;
+
+                    if (phase === 1) {
+                        px = ix; py = iy; pz = iz;
+                        const pulse = 0.8 + 0.4 * Math.sin(elapsedTime * 8 + i);
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.7 * pulse;
+                        colors[i3+2] = 0.2;
+                    } else if (phase === 2) {
+                        // lift and swirl
+                        px = ix + swirlOffsets[i3] * phaseT;
+                        py = iy + swirlOffsets[i3+1] * phaseT * 1.5;
+                        pz = iz + swirlOffsets[i3+2] * phaseT;
+                        colors[i3] = 0.3 + phaseT * 0.7;
+                        colors[i3+1] = 0.8 + phaseT * 0.2;
+                        colors[i3+2] = 1.0;
+                    } else if (phase === 3) {
+                        // assemble to target
+                        const startX = ix + swirlOffsets[i3];
+                        const startY = iy + swirlOffsets[i3+1] * 1.5;
+                        const startZ = iz + swirlOffsets[i3+2];
+                        const eased = phaseT; // linear
+                        px = startX * (1 - eased) + tx * eased;
+                        py = startY * (1 - eased) + ty * eased;
+                        pz = startZ * (1 - eased) + tz * eased;
+                        if (phaseT < 0.3) {
+                            px += Math.sin(elapsedTime * 50 + i) * 0.2 * (0.3 - phaseT);
+                        }
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.6 + 0.4 * Math.sin(elapsedTime * 30 + i);
+                        colors[i3+2] = 0.1 + 0.2 * Math.sin(elapsedTime * 20 + i);
+                    } else {
+                        // phase 4: final sparks around text
+                        const angle = elapsedTime * 2 + i;
+                        px = tx + Math.sin(angle) * 0.3 * (1 - phaseT);
+                        py = ty + Math.cos(angle*1.3) * 0.3 * (1 - phaseT);
+                        pz = tz + Math.sin(angle*0.7) * 0.3 * (1 - phaseT);
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.9;
+                        colors[i3+2] = 0.6;
+                    }
+                    positions[i3] = px;
+                    positions[i3+1] = py;
+                    positions[i3+2] = pz;
+                }
+                symbolParticles.geometry.attributes.position.needsUpdate = true;
+                symbolParticles.geometry.attributes.color.needsUpdate = true;
+            }
+
+            // Animate lights
+            stoneGlowLight.intensity = 1.5 + Math.sin(elapsedTime * 6) * 1.0;
+            bloomPass.strength = 1.5 + Math.sin(elapsedTime * 5) * 0.3;
+
+            composer.render();
+        }
+
+        animate();
+
+        // --- Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        console.log('Initialization complete, waiting for font or fallback.');
     </script>
 </body>
 </html>
