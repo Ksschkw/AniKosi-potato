@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Cinematic: KOSISOCHUKWU Forge</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: black;
+            font-family: 'Arial', sans-serif;
+        }
+        /* No subtitles, no watermark – only fullscreen canvas */
+        canvas {
+            display: block;
+        }
+        /* Optional subtle grain for cinematic feel (barely visible) */
+        .info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.1);
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">KOSISOCHUKWU • Cinematic Sequence</div>
+
+    <!-- Import Three.js core, addons, and loaders from CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.128.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+
+        // --- Configuration ---
+        const SCENE_DURATION = 7.0; // seconds (loop)
+        const PARTICLE_COUNT = 3500; // for symbol-to-text transformation
+        const DUST_COUNT = 800;
+        
+        // --- Setup Scene, Camera, Renderer ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510); // deep dark blue/black
+        scene.fog = new THREE.FogExp2(0x050510, 0.03); // subtle fog for depth
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(2, 1.5, 6); // starting position for cinematic push
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // limit for performance
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Post Processing (Volumetric Bloom) ---
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 1.6;
+        bloomPass.radius = 0.8;
+
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // --- Lighting ---
+        // Ambient base
+        const ambient = new THREE.AmbientLight(0x404060);
+        scene.add(ambient);
+
+        // Key light from above
+        const keyLight = new THREE.DirectionalLight(0xccaa88, 1.2);
+        keyLight.position.set(2, 5, 3);
+        scene.add(keyLight);
+
+        // Fill light
+        const fillLight = new THREE.DirectionalLight(0x88aaff, 0.6);
+        fillLight.position.set(-3, 1, 2);
+        scene.add(fillLight);
+
+        // Point light inside stone for glow (will be positioned with stone)
+        const stoneGlowLight = new THREE.PointLight(0xffaa33, 2, 8, 2);
+        stoneGlowLight.position.set(0, 0.2, 0);
+        scene.add(stoneGlowLight);
+
+        // Additional point lights for text reveal
+        const textGlowLight1 = new THREE.PointLight(0xffaa00, 1, 10);
+        textGlowLight1.position.set(1, 1, 2);
+        scene.add(textGlowLight1);
+        const textGlowLight2 = new THREE.PointLight(0x3377ff, 0.8, 10);
+        textGlowLight2.position.set(-1, -0.5, 2);
+        scene.add(textGlowLight2);
+
+        // --- Helper: Noise texture for stone displacement and particle variation ---
+        function createNoiseTexture(width = 64, height = 64) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.createImageData(width, height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const val = Math.floor(Math.random() * 256);
+                data[i] = val;       // R
+                data[i+1] = val;     // G
+                data[i+2] = val;     // B
+                data[i+3] = 255;     // A
+            }
+            ctx.putImageData(imageData, 0, 0);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
+        // --- 1. Create Ancient Stone Tablet (with displacement) ---
+        const stoneGeo = new THREE.BoxGeometry(2.2, 1.2, 0.8, 64, 64, 64); // high segments for detail
+        const stoneMat = new THREE.MeshStandardMaterial({
+            color: 0x6a5e4e,
+            emissive: 0x221100,
+            roughness: 0.7,
+            metalness: 0.1,
+            displacementMap: createNoiseTexture(128, 128),
+            displacementScale: 0.3,
+            displacementBias: -0.1,
+            map: (() => {
+                // Simple stone color map with some variation
+                const canvas = document.createElement('canvas');
+                canvas.width = 256;
+                canvas.height = 256;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#6a5e4e';
+                ctx.fillRect(0, 0, 256, 256);
+                for (let i = 0; i < 500; i++) {
+                    ctx.fillStyle = `rgba(80,70,60,${Math.random()*0.3})`;
+                    ctx.beginPath();
+                    ctx.arc(Math.random()*256, Math.random()*256, Math.random()*5, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+                return new THREE.CanvasTexture(canvas);
+            })(),
+            emissiveMap: createNoiseTexture(128, 128), // subtle glow variation
+        });
+        const stone = new THREE.Mesh(stoneGeo, stoneMat);
+        stone.castShadow = true;
+        stone.receiveShadow = false;
+        stone.position.set(0, 0, 0);
+        scene.add(stone);
+
+        // Position the point light inside stone
+        stoneGlowLight.position.copy(stone.position);
+
+        // --- 2. Particle Systems ---
+
+        // A) Dust particles (ambient, slow drifting)
+        const dustGeo = new THREE.BufferGeometry();
+        const dustPositions = new Float32Array(DUST_COUNT * 3);
+        for (let i = 0; i < DUST_COUNT; i++) {
+            // random sphere around origin
+            const r = 5 + Math.random() * 8;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            dustPositions[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            dustPositions[i*3+1] = Math.sin(phi) * Math.sin(theta) * r * 0.5; // flatten vertical
+            dustPositions[i*3+2] = Math.cos(phi) * r;
+        }
+        dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+        const dustMat = new THREE.PointsMaterial({
+            color: 0x88aacc,
+            size: 0.08,
+            transparent: true,
+            opacity: 0.4,
+            blending: THREE.AdditiveBlending,
+            map: (() => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 16;
+                canvas.height = 16;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(8, 8, 6, 0, 2*Math.PI);
+                ctx.fill();
+                return new THREE.CanvasTexture(canvas);
+            })(),
+            depthWrite: false
+        });
+        const dustParticles = new THREE.Points(dustGeo, dustMat);
+        scene.add(dustParticles);
+
+        // B) Main symbol particles (will transform into text)
+        const particleGeo = new THREE.BufferGeometry();
+        const initialPositions = new Float32Array(PARTICLE_COUNT * 3);
+        const particleColors = new Float32Array(PARTICLE_COUNT * 3); // for gradient
+        const particleSizes = new Float32Array(PARTICLE_COUNT); // not used directly, but via uniform
+
+        // Pre-generate random positions on stone surface (approx)
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            // Random face of box (0-5) and random UV
+            const face = Math.floor(Math.random() * 6);
+            let x, y, z;
+            const u = Math.random() * 2 - 1;
+            const v = Math.random() * 2 - 1;
+            const halfW = 1.1, halfH = 0.6, halfD = 0.4; // stone half-dimensions (slightly larger than geom to sit on surface)
+            switch(face) {
+                case 0: // +x
+                    x = halfW; y = v * halfH; z = u * halfD; break;
+                case 1: // -x
+                    x = -halfW; y = v * halfH; z = u * halfD; break;
+                case 2: // +y
+                    x = u * halfW; y = halfH; z = v * halfD; break;
+                case 3: // -y
+                    x = u * halfW; y = -halfH; z = v * halfD; break;
+                case 4: // +z
+                    x = u * halfW; y = v * halfH; z = halfD; break;
+                case 5: // -z
+                    x = u * halfW; y = v * halfH; z = -halfD; break;
+            }
+            // Add small random offset to simulate roughness
+            x += (Math.random() - 0.5) * 0.2;
+            y += (Math.random() - 0.5) * 0.2;
+            z += (Math.random() - 0.5) * 0.2;
+            
+            initialPositions[i*3] = x;
+            initialPositions[i*3+1] = y;
+            initialPositions[i*3+2] = z;
+            
+            // Colors: start gold/amber
+            particleColors[i*3] = 1.0; // r
+            particleColors[i*3+1] = 0.7 + Math.random()*0.3; // g
+            particleColors[i*3+2] = 0.2 + Math.random()*0.2; // b
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(initialPositions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+        // Particle material
+        const particleTexture = (() => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(16, 16, 12, 0, 2*Math.PI);
+            ctx.fill();
+            ctx.globalCompositeOperation = 'source-atop';
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(16, 16, 8, 0, 2*Math.PI);
+            ctx.fill();
+            return new THREE.CanvasTexture(canvas);
+        })();
+
+        const particleMat = new THREE.PointsMaterial({
+            size: 0.15,
+            map: particleTexture,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            sizeAttenuation: true
+        });
+        const symbolParticles = new THREE.Points(particleGeo, particleMat);
+        scene.add(symbolParticles);
+
+        // Store target positions (will be filled after font loads)
+        let targetPositions = new Float32Array(PARTICLE_COUNT * 3);
+        // Also store a swirl offset array for dynamic movement
+        const swirlOffsets = new Float32Array(PARTICLE_COUNT * 3);
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            swirlOffsets[i*3] = (Math.random() - 0.5) * 4;
+            swirlOffsets[i*3+1] = (Math.random() - 0.5) * 4;
+            swirlOffsets[i*3+2] = (Math.random() - 0.5) * 4;
+        }
+
+        // --- 3. Text Mesh (final reveal) ---
+        let textMesh = null;
+        let textTargetsReady = false;
+
+        // Load font and generate target positions & text mesh
+        const loader = new FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', (font) => {
+            const textGeo = new THREE.TextGeometry('KOSISOCHUKWU', {
+                font: font,
+                size: 1.2,
+                height: 0.25,
+                curveSegments: 8,
+                bevelEnabled: true,
+                bevelThickness: 0.05,
+                bevelSize: 0.03,
+                bevelOffset: 0,
+                bevelSegments: 5
+            });
+            textGeo.center(); // center the geometry
+            
+            // Create final text mesh (glowing, metallic)
+            const textMat = new THREE.MeshStandardMaterial({
+                color: 0xffaa33,
+                emissive: 0xaa4400,
+                roughness: 0.3,
+                metalness: 0.8,
+                emissiveIntensity: 1.2
+            });
+            textMesh = new THREE.Mesh(textGeo, textMat);
+            textMesh.position.set(0, 0.1, 0);
+            textMesh.scale.set(1, 1, 1);
+            textMesh.visible = false; // hidden until final reveal
+            scene.add(textMesh);
+
+            // Sample vertices from text geometry for particle targets
+            const posAttr = textGeo.attributes.position;
+            const vertexCount = posAttr.count;
+            const positions = posAttr.array;
+            
+            // Randomly select PARTICLE_COUNT vertices (with repetition if needed)
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const idx = Math.floor(Math.random() * vertexCount) * 3;
+                targetPositions[i*3] = positions[idx];
+                targetPositions[i*3+1] = positions[idx+1];
+                targetPositions[i*3+2] = positions[idx+2];
+            }
+            
+            // Also add slight random offset to make cloud more organic
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                targetPositions[i*3] += (Math.random() - 0.5) * 0.15;
+                targetPositions[i*3+1] += (Math.random() - 0.5) * 0.15;
+                targetPositions[i*3+2] += (Math.random() - 0.5) * 0.15;
+            }
+            
+            textTargetsReady = true;
+        });
+
+        // --- Camera Animation Path (slow forward push with slight orbit) ---
+        function updateCamera(time) {
+            // t cycles 0..1 over 7 seconds
+            const t = (time % SCENE_DURATION) / SCENE_DURATION;
+            
+            // Start: (2, 1.5, 6) -> End: (0.5, 0.8, 2.5) with slight arc
+            const startPos = new THREE.Vector3(2, 1.5, 6);
+            const endPos = new THREE.Vector3(0.2, 0.5, 2.2);
+            const orbitOffset = new THREE.Vector3(
+                Math.sin(time * 0.5) * 0.3,
+                Math.cos(time * 0.3) * 0.1,
+                0
+            );
+            
+            // Ease in-out
+            const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            
+            camera.position.lerpVectors(startPos, endPos, eased);
+            camera.position.add(orbitOffset);
+            camera.lookAt(0, 0.2, 0);
+        }
+
+        // --- Animation Loop Variables ---
+        const clock = new THREE.Clock();
+
+        // --- Animation Logic ---
+        function animate() {
+            const delta = clock.getDelta();
+            const elapsedTime = performance.now() / 1000; // seconds
+            const tCycle = (elapsedTime % SCENE_DURATION) / SCENE_DURATION; // 0..1 loop
+
+            // Update camera
+            updateCamera(elapsedTime);
+
+            // --- Dust particles drift slowly ---
+            const dustPos = dustParticles.geometry.attributes.position.array;
+            for (let i = 0; i < DUST_COUNT; i++) {
+                // Simple drift in a vortex
+                const idx = i * 3;
+                dustPos[idx] += Math.sin(elapsedTime * 0.5 + i) * 0.0005;
+                dustPos[idx+1] += Math.cos(elapsedTime * 0.3 + i) * 0.0003;
+                dustPos[idx+2] += Math.sin(elapsedTime * 0.4 + i*2) * 0.0004;
+                // Reset if too far
+                if (dustPos[idx] > 12) dustPos[idx] = -12;
+                if (dustPos[idx+1] > 8) dustPos[idx+1] = -8;
+            }
+            dustParticles.geometry.attributes.position.needsUpdate = true;
+
+            // --- Main particle transformation ---
+            if (textTargetsReady) {
+                const positions = symbolParticles.geometry.attributes.position.array;
+                const colors = symbolParticles.geometry.attributes.color.array;
+                
+                // Define phases based on tCycle (0-1)
+                // 0-0.28: phase1 (stone glow) (0-2s)
+                // 0.28-0.57: phase2 (lift & swirl) (2-4s)
+                // 0.57-0.85: phase3 (assembly) (4-6s)
+                // 0.85-1.0: phase4 (final reveal) (6-7s)
+                
+                let phase = 0;
+                let phaseT = 0;
+                if (tCycle < 0.28) {
+                    phase = 1;
+                    phaseT = tCycle / 0.28; // 0..1
+                } else if (tCycle < 0.57) {
+                    phase = 2;
+                    phaseT = (tCycle - 0.28) / 0.29; // 0..1
+                } else if (tCycle < 0.85) {
+                    phase = 3;
+                    phaseT = (tCycle - 0.57) / 0.28; // 0..1
+                } else {
+                    phase = 4;
+                    phaseT = (tCycle - 0.85) / 0.15; // 0..1
+                }
+
+                // Show text mesh only in phase 4, with fade-in
+                if (textMesh) {
+                    if (phase === 4) {
+                        textMesh.visible = true;
+                        textMesh.material.emissiveIntensity = 1.0 + Math.sin(elapsedTime * 10) * 0.3;
+                        // also scale slightly for pulse
+                        textMesh.scale.setScalar(1.0 + Math.sin(elapsedTime * 20) * 0.02);
+                    } else {
+                        textMesh.visible = false;
+                    }
+                }
+
+                // Update particle positions based on phase
+                for (let i = 0; i < PARTICLE_COUNT; i++) {
+                    const i3 = i * 3;
+                    const initX = initialPositions[i3];
+                    const initY = initialPositions[i3+1];
+                    const initZ = initialPositions[i3+2];
+                    
+                    const targetX = targetPositions[i3];
+                    const targetY = targetPositions[i3+1];
+                    const targetZ = targetPositions[i3+2];
+                    
+                    let px, py, pz;
+                    
+                    if (phase === 1) {
+                        // Phase1: particles on stone, subtle glow pulse
+                        px = initX;
+                        py = initY;
+                        pz = initZ;
+                        // Colors goldish with pulse
+                        const pulse = 0.8 + 0.4 * Math.sin(elapsedTime * 8 + i);
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.7 * pulse;
+                        colors[i3+2] = 0.2;
+                    } else if (phase === 2) {
+                        // Phase2: lift off and swirl: interpolate from stone to intermediate swirling positions
+                        // Intermediate: stone + swirl offset * phaseT
+                        const swirlX = initX + swirlOffsets[i3] * phaseT;
+                        const swirlY = initY + swirlOffsets[i3+1] * phaseT * 1.5;
+                        const swirlZ = initZ + swirlOffsets[i3+2] * phaseT;
+                        px = swirlX;
+                        py = swirlY;
+                        pz = swirlZ;
+                        // Colors shift to neon blue/cyan
+                        colors[i3] = 0.3 + phaseT * 0.7;
+                        colors[i3+1] = 0.8 + phaseT * 0.2;
+                        colors[i3+2] = 1.0;
+                    } else if (phase === 3) {
+                        // Phase3: assembly from swirl positions to target
+                        // Starting from phase2 end position (swirl fully applied)
+                        const startX = initX + swirlOffsets[i3];
+                        const startY = initY + swirlOffsets[i3+1] * 1.5;
+                        const startZ = initZ + swirlOffsets[i3+2];
+                        // Ease to target
+                        const eased = phaseT; // could use cubic
+                        px = startX * (1 - eased) + targetX * eased;
+                        py = startY * (1 - eased) + targetY * eased;
+                        pz = startZ * (1 - eased) + targetZ * eased;
+                        // Add spark overshoot effect
+                        if (phaseT < 0.3) {
+                            // slight overshoot
+                            px += Math.sin(elapsedTime * 50 + i) * 0.2 * (0.3 - phaseT);
+                        }
+                        // Colors become molten gold
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.6 + 0.4 * Math.sin(elapsedTime * 30 + i);
+                        colors[i3+2] = 0.1 + 0.2 * Math.sin(elapsedTime * 20 + i);
+                    } else {
+                        // Phase4: final reveal - particles either fade or become subtle sparks around text
+                        // We'll make them slowly move around text and fade out
+                        const orbitSpeed = 0.5;
+                        const angle = elapsedTime * 2 + i;
+                        const radius = 0.8;
+                        px = targetX + Math.sin(angle) * 0.3 * (1 - phaseT);
+                        py = targetY + Math.cos(angle*1.3) * 0.3 * (1 - phaseT);
+                        pz = targetZ + Math.sin(angle*0.7) * 0.3 * (1 - phaseT);
+                        // fade out opacity? we can control material opacity but per particle is tricky.
+                        // Instead we reduce size via material? but we'll just let them be subtle.
+                        colors[i3] = 1.0;
+                        colors[i3+1] = 0.9;
+                        colors[i3+2] = 0.6;
+                    }
+                    
+                    positions[i3] = px;
+                    positions[i3+1] = py;
+                    positions[i3+2] = pz;
+                }
+                
+                // Update attributes
+                symbolParticles.geometry.attributes.position.needsUpdate = true;
+                symbolParticles.geometry.attributes.color.needsUpdate = true;
+                
+                // Pulse bloom strength slightly
+                bloomPass.strength = 1.5 + Math.sin(elapsedTime * 5) * 0.3;
+            }
+
+            // Animate stone glow light
+            stoneGlowLight.intensity = 1.5 + Math.sin(elapsedTime * 6) * 1.0;
+
+            // Render via composer
+            composer.render();
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Start animation
+        animate();
+
+        // --- Resize Handler ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- Initial kick: add some random stars for background depth (optional) ---
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(1500 * 3);
+        for (let i = 0; i < 1500; i++) {
+            const r = 15 + Math.random() * 20;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            starPos[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+            starPos[i*3+1] = Math.sin(phi) * Math.sin(theta) * r;
+            starPos[i*3+2] = Math.cos(phi) * r;
+        }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0x88aadd, size: 0.15, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        console.log('Cinematic sequence started. Enjoy KOSISOCHUKWU!');
+    </script>
+</body>
+</html>
